@@ -37,10 +37,10 @@ DUREE_VIE_EQUIPEMENT = {
     'DEFAULT': 10
 }
 
-EMISSION_CO2_KWH = 0.057  # kg CO2 par kWh
-CO2_PAR_ARBRE_AN = 25  # kg CO2 absorbé par arbre par an
-CO2_PAR_VOITURE_AN = 2800  # kg CO2 par voiture par an
-CONSO_MOYENNE_FOYER_KWH = 15312  # kWh/an (chauffage + élec)
+EMISSION_CO2_KWH = 0.069  # kg CO2 par kWh
+CO2_PAR_ARBRE_AN = 20  # kg CO2 absorbé par arbre par an
+CO2_PAR_VOITURE_AN = 2700  # kg CO2 par voiture par an
+CONSO_MOYENNE_FOYER_KWH = 4200  # kWh/an
 
 # Configuration de la page
 st.set_page_config(
