@@ -1886,87 +1886,251 @@ def create_evolution_curves(df):
     df_grouped['Classique_GWh'] = df_grouped['Total_classique_MWh'] / 1000
     df_grouped['Total_GWh'] = df_grouped['Précarité_GWh'] + df_grouped['Classique_GWh']
     
+    # Calcul des moyennes mobiles (tendances)
+    if len(df_grouped) >= 3:
+        df_grouped['Tendance_Prec'] = df_grouped['Précarité_GWh'].rolling(window=3, min_periods=1).mean()
+        df_grouped['Tendance_Class'] = df_grouped['Classique_GWh'].rolling(window=3, min_periods=1).mean()
+    
     # Calcul du pourcentage précarité
     df_grouped['Pct_Precarite'] = (df_grouped['Précarité_GWh'] / df_grouped['Total_GWh'] * 100).round(1)
     
+    # Calcul des variations
+    df_grouped['Var_Prec'] = df_grouped['Précarité_GWh'].pct_change() * 100
+    df_grouped['Var_Class'] = df_grouped['Classique_GWh'].pct_change() * 100
+    
+    n_points = len(df_grouped)
+    
+    # Fonction pour les positions de texte
+    def get_text_positions(n):
+        positions = []
+        for i in range(n):
+            if i == 0:
+                positions.append('middle right')
+            elif i == n - 1:
+                positions.append('middle left')
+            else:
+                positions.append('top center')
+        return positions
+    
+    text_pos = get_text_positions(n_points)
+    
     st.markdown("---")
     
-    # === COURBES D'ÉVOLUTION ===
+    # === COURBE PRÉCARITÉ ===
+    st.subheader(f"🔴 Évolution {title_suffix} - Volume PRÉCARITÉ (GWh cumac)")
+    
+    val_prec = df_grouped['Précarité_GWh'].apply(lambda x: f"{x:.1f}").tolist()
+    
+    fig_prec = go.Figure()
+    
+    # Courbe principale Précarité
+    fig_prec.add_trace(go.Scatter(
+        x=df_grouped['Période'].tolist(),
+        y=df_grouped['Précarité_GWh'].tolist(),
+        mode='lines+markers+text',
+        name='Précarité (GWh)',
+        line=dict(color='#e76f51', width=3),
+        marker=dict(size=12, color='#e76f51', symbol='circle'),
+        text=val_prec,
+        textposition=text_pos,
+        textfont=dict(size=12, color='#c1121f', family='Arial Black'),
+        fill='tozeroy',
+        fillcolor='rgba(231, 111, 81, 0.1)',
+        hovertemplate='<b>%{x}</b><br>Précarité: %{y:.2f} GWh cumac<extra></extra>'
+    ))
+    
+    # Ligne de tendance Précarité
+    if len(df_grouped) >= 3:
+        fig_prec.add_trace(go.Scatter(
+            x=df_grouped['Période'].tolist(),
+            y=df_grouped['Tendance_Prec'].tolist(),
+            mode='lines',
+            name='Tendance (MM3)',
+            line=dict(color='#9d0208', width=2, dash='dash'),
+            hovertemplate='<b>%{x}</b><br>Tendance: %{y:.2f} GWh<extra></extra>'
+        ))
+    
+    y_max_prec = df_grouped['Précarité_GWh'].max()
+    
+    fig_prec.update_layout(
+        xaxis_title="Période",
+        yaxis_title="Volume Précarité (GWh cumac)",
+        height=400,
+        hovermode='x unified',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        plot_bgcolor='white',
+        margin=dict(l=70, r=70, t=50, b=60),
+        yaxis=dict(gridcolor='lightgray', range=[0, y_max_prec * 1.25]),
+        xaxis=dict(tickangle=-45 if n_points > 6 else 0, type='category')
+    )
+    
+    st.plotly_chart(fig_prec, use_container_width=True)
+    
+    # KPIs Précarité
+    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+    
+    with col_p1:
+        total_prec = df_grouped['Précarité_GWh'].sum()
+        st.metric("📊 Total Précarité", f"{total_prec:.1f} GWh")
+    
+    with col_p2:
+        moy_prec = df_grouped['Précarité_GWh'].mean()
+        st.metric(f"📈 Moyenne {title_suffix[:-1]}le", f"{moy_prec:.1f} GWh")
+    
+    with col_p3:
+        max_prec = df_grouped['Précarité_GWh'].max()
+        periode_max_prec = df_grouped.loc[df_grouped['Précarité_GWh'].idxmax(), 'Période']
+        st.metric("🔝 Maximum", f"{max_prec:.1f} GWh", delta=f"{periode_max_prec}")
+    
+    with col_p4:
+        if len(df_grouped) >= 2:
+            var_last_prec = df_grouped['Var_Prec'].iloc[-1]
+            st.metric("📉 Var. dernière période", f"{var_last_prec:+.1f}%", 
+                     delta_color="normal" if var_last_prec >= 0 else "inverse")
+        else:
+            st.metric("📉 Var. dernière période", "N/A")
+    
+    st.markdown("---")
+    
+    # === COURBE CLASSIQUE ===
+    st.subheader(f"🔵 Évolution {title_suffix} - Volume CLASSIQUE (GWh cumac)")
+    
+    val_class = df_grouped['Classique_GWh'].apply(lambda x: f"{x:.1f}").tolist()
+    
+    fig_class = go.Figure()
+    
+    # Courbe principale Classique
+    fig_class.add_trace(go.Scatter(
+        x=df_grouped['Période'].tolist(),
+        y=df_grouped['Classique_GWh'].tolist(),
+        mode='lines+markers+text',
+        name='Classique (GWh)',
+        line=dict(color='#457b9d', width=3),
+        marker=dict(size=12, color='#457b9d', symbol='circle'),
+        text=val_class,
+        textposition=text_pos,
+        textfont=dict(size=12, color='#1d3557', family='Arial Black'),
+        fill='tozeroy',
+        fillcolor='rgba(69, 123, 157, 0.1)',
+        hovertemplate='<b>%{x}</b><br>Classique: %{y:.2f} GWh cumac<extra></extra>'
+    ))
+    
+    # Ligne de tendance Classique
+    if len(df_grouped) >= 3:
+        fig_class.add_trace(go.Scatter(
+            x=df_grouped['Période'].tolist(),
+            y=df_grouped['Tendance_Class'].tolist(),
+            mode='lines',
+            name='Tendance (MM3)',
+            line=dict(color='#14213d', width=2, dash='dash'),
+            hovertemplate='<b>%{x}</b><br>Tendance: %{y:.2f} GWh<extra></extra>'
+        ))
+    
+    y_max_class = df_grouped['Classique_GWh'].max()
+    
+    fig_class.update_layout(
+        xaxis_title="Période",
+        yaxis_title="Volume Classique (GWh cumac)",
+        height=400,
+        hovermode='x unified',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        plot_bgcolor='white',
+        margin=dict(l=70, r=70, t=50, b=60),
+        yaxis=dict(gridcolor='lightgray', range=[0, y_max_class * 1.25]),
+        xaxis=dict(tickangle=-45 if n_points > 6 else 0, type='category')
+    )
+    
+    st.plotly_chart(fig_class, use_container_width=True)
+    
+    # KPIs Classique
+    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+    
+    with col_c1:
+        total_class = df_grouped['Classique_GWh'].sum()
+        st.metric("📊 Total Classique", f"{total_class:.1f} GWh")
+    
+    with col_c2:
+        moy_class = df_grouped['Classique_GWh'].mean()
+        st.metric(f"📈 Moyenne {title_suffix[:-1]}le", f"{moy_class:.1f} GWh")
+    
+    with col_c3:
+        max_class = df_grouped['Classique_GWh'].max()
+        periode_max_class = df_grouped.loc[df_grouped['Classique_GWh'].idxmax(), 'Période']
+        st.metric("🔝 Maximum", f"{max_class:.1f} GWh", delta=f"{periode_max_class}")
+    
+    with col_c4:
+        if len(df_grouped) >= 2:
+            var_last_class = df_grouped['Var_Class'].iloc[-1]
+            st.metric("📉 Var. dernière période", f"{var_last_class:+.1f}%", 
+                     delta_color="normal" if var_last_class >= 0 else "inverse")
+        else:
+            st.metric("📉 Var. dernière période", "N/A")
+    
+    st.markdown("---")
+    
+    # === COMPARAISON CÔTE À CÔTE ===
+    st.subheader(f"⚖️ Comparaison {title_suffix} - Précarité vs Classique")
+    
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader(f"📊 Évolution {title_suffix} Précarité vs Classique")
+        # Graphique empilé
+        val_total = df_grouped['Total_GWh'].apply(lambda x: f"{x:.1f}").tolist()
         
-        # Formater les valeurs
-        n_points = len(df_grouped)
+        fig_stack = go.Figure()
         
-        # Positions de texte
-        def get_text_positions(n):
-            positions = []
-            for i in range(n):
-                if i == 0:
-                    positions.append('middle right')
-                elif i == n - 1:
-                    positions.append('middle left')
-                else:
-                    positions.append('top center')
-            return positions
-        
-        text_pos = get_text_positions(n_points)
-        
-        # Valeurs formatées
-        val_prec = df_grouped['Précarité_GWh'].apply(lambda x: f"{x:.1f}").tolist()
-        val_class = df_grouped['Classique_GWh'].apply(lambda x: f"{x:.1f}").tolist()
-        
-        fig_evol = go.Figure()
-        
-        # Courbe Précarité
-        fig_evol.add_trace(go.Scatter(
+        fig_stack.add_trace(go.Bar(
             x=df_grouped['Période'].tolist(),
             y=df_grouped['Précarité_GWh'].tolist(),
-            mode='lines+markers+text',
-            name='Précarité (GWh)',
-            line=dict(color='#e76f51', width=3),
-            marker=dict(size=10, color='#e76f51'),
-            text=val_prec,
-            textposition=text_pos,
-            textfont=dict(size=11, color='#c1121f', family='Arial Black'),
-            hovertemplate='<b>%{x}</b><br>Précarité: %{y:.2f} GWh cumac<extra></extra>'
+            name='Précarité',
+            marker_color='#e76f51',
+            text=df_grouped['Précarité_GWh'].apply(lambda x: f"{x:.1f}").tolist(),
+            textposition='inside',
+            textfont=dict(size=11, color='white'),
+            hovertemplate='<b>%{x}</b><br>Précarité: %{y:.2f} GWh<extra></extra>'
         ))
         
-        # Courbe Classique
-        fig_evol.add_trace(go.Scatter(
+        fig_stack.add_trace(go.Bar(
             x=df_grouped['Période'].tolist(),
             y=df_grouped['Classique_GWh'].tolist(),
-            mode='lines+markers+text',
-            name='Classique (GWh)',
-            line=dict(color='#457b9d', width=3),
-            marker=dict(size=10, color='#457b9d'),
-            text=val_class,
-            textposition=text_pos,
-            textfont=dict(size=11, color='#1d3557', family='Arial Black'),
-            hovertemplate='<b>%{x}</b><br>Classique: %{y:.2f} GWh cumac<extra></extra>'
+            name='Classique',
+            marker_color='#457b9d',
+            text=df_grouped['Classique_GWh'].apply(lambda x: f"{x:.1f}").tolist(),
+            textposition='inside',
+            textfont=dict(size=11, color='white'),
+            hovertemplate='<b>%{x}</b><br>Classique: %{y:.2f} GWh<extra></extra>'
         ))
         
-        y_max = max(df_grouped['Précarité_GWh'].max(), df_grouped['Classique_GWh'].max())
+        # Totaux au-dessus
+        fig_stack.add_trace(go.Scatter(
+            x=df_grouped['Période'].tolist(),
+            y=df_grouped['Total_GWh'].tolist(),
+            mode='text',
+            text=val_total,
+            textposition='top center',
+            textfont=dict(size=12, color='black', family='Arial Black'),
+            showlegend=False,
+            hoverinfo='skip'
+        ))
         
-        fig_evol.update_layout(
+        fig_stack.update_layout(
+            title="Volume Total Empilé",
+            barmode='stack',
             xaxis_title="Période",
             yaxis_title="Volume (GWh cumac)",
-            height=450,
+            height=400,
             hovermode='x unified',
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
             plot_bgcolor='white',
-            margin=dict(l=70, r=70, t=50, b=60),
-            yaxis=dict(gridcolor='lightgray', range=[0, y_max * 1.2]),
+            margin=dict(l=70, r=70, t=80, b=60),
+            yaxis=dict(gridcolor='lightgray', range=[0, df_grouped['Total_GWh'].max() * 1.15]),
             xaxis=dict(tickangle=-45 if n_points > 6 else 0, type='category')
         )
         
-        st.plotly_chart(fig_evol, use_container_width=True)
+        st.plotly_chart(fig_stack, use_container_width=True)
     
     with col2:
-        st.subheader(f"📈 Évolution du % Précarité")
-        
+        # Évolution du % Précarité
         val_pct = df_grouped['Pct_Precarite'].apply(lambda x: f"{x:.1f}%").tolist()
         
         fig_pct = go.Figure()
@@ -1991,79 +2155,22 @@ def create_evolution_curves(df):
                          annotation_text="50%", annotation_position="right")
         
         fig_pct.update_layout(
+            title="Évolution du % Précarité",
             xaxis_title="Période",
             yaxis_title="Part Précarité (%)",
-            height=450,
+            height=400,
             hovermode='x unified',
             plot_bgcolor='white',
-            margin=dict(l=70, r=70, t=50, b=60),
+            margin=dict(l=70, r=70, t=80, b=60),
             yaxis=dict(gridcolor='lightgray', range=[0, 100]),
             xaxis=dict(tickangle=-45 if n_points > 6 else 0, type='category')
         )
         
         st.plotly_chart(fig_pct, use_container_width=True)
     
+    # === RÉCAPITULATIF GLOBAL ===
     st.markdown("---")
-    
-    # === GRAPHIQUE EMPILÉ ===
-    st.subheader(f"📊 Volume Total {title_suffix} (Empilé)")
-    
-    val_total = df_grouped['Total_GWh'].apply(lambda x: f"{x:.1f}").tolist()
-    
-    fig_stack = go.Figure()
-    
-    fig_stack.add_trace(go.Bar(
-        x=df_grouped['Période'].tolist(),
-        y=df_grouped['Précarité_GWh'].tolist(),
-        name='Précarité',
-        marker_color='#e76f51',
-        text=df_grouped['Précarité_GWh'].apply(lambda x: f"{x:.1f}").tolist(),
-        textposition='inside',
-        textfont=dict(size=11, color='white'),
-        hovertemplate='<b>%{x}</b><br>Précarité: %{y:.2f} GWh<extra></extra>'
-    ))
-    
-    fig_stack.add_trace(go.Bar(
-        x=df_grouped['Période'].tolist(),
-        y=df_grouped['Classique_GWh'].tolist(),
-        name='Classique',
-        marker_color='#457b9d',
-        text=df_grouped['Classique_GWh'].apply(lambda x: f"{x:.1f}").tolist(),
-        textposition='inside',
-        textfont=dict(size=11, color='white'),
-        hovertemplate='<b>%{x}</b><br>Classique: %{y:.2f} GWh<extra></extra>'
-    ))
-    
-    # Ajouter les totaux au-dessus des barres
-    fig_stack.add_trace(go.Scatter(
-        x=df_grouped['Période'].tolist(),
-        y=df_grouped['Total_GWh'].tolist(),
-        mode='text',
-        text=val_total,
-        textposition='top center',
-        textfont=dict(size=12, color='black', family='Arial Black'),
-        showlegend=False,
-        hoverinfo='skip'
-    ))
-    
-    fig_stack.update_layout(
-        barmode='stack',
-        xaxis_title="Période",
-        yaxis_title="Volume (GWh cumac)",
-        height=400,
-        hovermode='x unified',
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-        plot_bgcolor='white',
-        margin=dict(l=70, r=70, t=50, b=60),
-        yaxis=dict(gridcolor='lightgray', range=[0, df_grouped['Total_GWh'].max() * 1.15]),
-        xaxis=dict(tickangle=-45 if n_points > 8 else 0, type='category')
-    )
-    
-    st.plotly_chart(fig_stack, use_container_width=True)
-    
-    # === KPIs RÉCAPITULATIFS ===
-    st.markdown("---")
-    st.subheader("📋 Récapitulatif")
+    st.subheader("📋 Récapitulatif Global")
     
     col1, col2, col3, col4 = st.columns(4)
     
