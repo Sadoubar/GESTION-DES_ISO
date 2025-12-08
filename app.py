@@ -706,14 +706,22 @@ def create_volume_evolution_chart(df):
         # Courbe simple d'évolution des volumes
         fig_courbe = go.Figure()
         
-        # Courbe des volumes (GWh)
+        # Formater les valeurs pour l'affichage (arrondi intelligent)
+        valeurs_affichees = df_grouped['Volume_GWh'].apply(
+            lambda x: f"{x:.1f}" if x >= 10 else f"{x:.2f}"
+        )
+        
+        # Courbe des volumes (GWh) avec valeurs affichées
         fig_courbe.add_trace(go.Scatter(
             x=df_grouped['Période'],
             y=df_grouped['Volume_GWh'],
-            mode='lines+markers',
-            name='Volume déposé (GWh)',
+            mode='lines+markers+text',
+            name='Volume déposé (GWh cumac)',
             line=dict(color='#2563eb', width=3),
-            marker=dict(size=8, color='#2563eb'),
+            marker=dict(size=10, color='#2563eb', symbol='circle'),
+            text=valeurs_affichees,
+            textposition='top center',
+            textfont=dict(size=11, color='#1e40af', family='Arial Black'),
             fill='tozeroy',
             fillcolor='rgba(37, 99, 235, 0.1)',
             hovertemplate='<b>%{x}</b><br>Volume: %{y:.2f} GWh cumac<extra></extra>'
@@ -728,14 +736,21 @@ def create_volume_evolution_chart(df):
                 mode='lines',
                 name='Tendance (MM3)',
                 line=dict(color='#dc2626', width=2, dash='dash'),
-                hovertemplate='<b>%{x}</b><br>Tendance: %{y:.2f} GWh<extra></extra>'
+                hovertemplate='<b>%{x}</b><br>Tendance: %{y:.2f} GWh cumac<extra></extra>'
             ))
         
+        # Calcul de la marge pour les annotations
+        y_max = df_grouped['Volume_GWh'].max()
+        y_margin = y_max * 0.15  # 15% de marge en haut
+        
         fig_courbe.update_layout(
-            title=f"Évolution {title_suffix} des Volumes Déposés",
+            title=dict(
+                text=f"Évolution {title_suffix} des Volumes Déposés (GWh cumac)",
+                font=dict(size=14)
+            ),
             xaxis_title="Période",
             yaxis_title="Volume (GWh cumac)",
-            height=400,
+            height=450,
             hovermode='x unified',
             legend=dict(
                 orientation="h",
@@ -745,7 +760,13 @@ def create_volume_evolution_chart(df):
                 x=1
             ),
             plot_bgcolor='white',
-            yaxis=dict(gridcolor='lightgray', zeroline=True, zerolinecolor='lightgray')
+            yaxis=dict(
+                gridcolor='lightgray', 
+                zeroline=True, 
+                zerolinecolor='lightgray',
+                range=[0, y_max + y_margin]  # Ajouter de l'espace pour les labels
+            ),
+            xaxis=dict(tickangle=-45 if len(df_grouped) > 8 else 0)
         )
         
         st.plotly_chart(fig_courbe, use_container_width=True)
@@ -754,28 +775,49 @@ def create_volume_evolution_chart(df):
         # Courbe cumulative des volumes
         df_grouped['Volume_Cumule_GWh'] = df_grouped['Volume_GWh'].cumsum()
         
+        # Formater les valeurs cumulées
+        valeurs_cumul_affichees = df_grouped['Volume_Cumule_GWh'].apply(
+            lambda x: f"{x:.1f}" if x >= 10 else f"{x:.2f}"
+        )
+        
         fig_cumul = go.Figure()
         
         fig_cumul.add_trace(go.Scatter(
             x=df_grouped['Période'],
             y=df_grouped['Volume_Cumule_GWh'],
-            mode='lines+markers',
-            name='Volume cumulé (GWh)',
+            mode='lines+markers+text',
+            name='Volume cumulé (GWh cumac)',
             line=dict(color='#059669', width=3),
-            marker=dict(size=8, color='#059669'),
+            marker=dict(size=10, color='#059669', symbol='circle'),
+            text=valeurs_cumul_affichees,
+            textposition='top center',
+            textfont=dict(size=11, color='#047857', family='Arial Black'),
             fill='tozeroy',
             fillcolor='rgba(5, 150, 105, 0.1)',
             hovertemplate='<b>%{x}</b><br>Volume cumulé: %{y:.2f} GWh cumac<extra></extra>'
         ))
         
+        # Calcul de la marge pour les annotations
+        y_max_cumul = df_grouped['Volume_Cumule_GWh'].max()
+        y_margin_cumul = y_max_cumul * 0.15
+        
         fig_cumul.update_layout(
-            title=f"Volume Cumulé {title_suffix}",
+            title=dict(
+                text=f"Volume Cumulé {title_suffix} (GWh cumac)",
+                font=dict(size=14)
+            ),
             xaxis_title="Période",
             yaxis_title="Volume cumulé (GWh cumac)",
-            height=400,
+            height=450,
             hovermode='x unified',
             plot_bgcolor='white',
-            yaxis=dict(gridcolor='lightgray', zeroline=True, zerolinecolor='lightgray')
+            yaxis=dict(
+                gridcolor='lightgray', 
+                zeroline=True, 
+                zerolinecolor='lightgray',
+                range=[0, y_max_cumul + y_margin_cumul]
+            ),
+            xaxis=dict(tickangle=-45 if len(df_grouped) > 8 else 0)
         )
         
         st.plotly_chart(fig_cumul, use_container_width=True)
