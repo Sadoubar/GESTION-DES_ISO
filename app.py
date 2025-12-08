@@ -285,8 +285,7 @@ def load_and_process_data(uploaded_file):
                 col_norm = col.strip().lower()
                 if 'date' in col_norm and ('depot' in col_norm or 'dépôt' in col_norm):
                     rename_map[col] = 'Date Depot'
-                elif (
-                        'depot' in col_norm or 'dépôt' in col_norm) and 'date' not in col_norm and 'n°' not in col_norm and 'no' not in col_norm:
+                elif ('depot' in col_norm or 'dépôt' in col_norm) and 'date' not in col_norm and 'n°' not in col_norm and 'no' not in col_norm:
                     rename_map[col] = 'Depot'
 
             if rename_map:
@@ -603,10 +602,18 @@ def create_volume_evolution_chart(df):
         df_evol['Période'] = df_evol['Date depot'].dt.year.astype(str)
         title_suffix = "Annuelle"
 
+    # Vérifier que Volume_total_MWh existe
+    if 'Volume_total_MWh' not in df_evol.columns:
+        st.warning("⚠️ La colonne 'Volume_total_MWh' n'est pas disponible.")
+        return
+
+    # Vérifier que N° DEPOT existe
+    count_col = 'N° DEPOT' if 'N° DEPOT' in df_evol.columns else df_evol.columns[0]
+
     # Agrégation
     df_grouped = df_evol.groupby(['Période_Tri', 'Période']).agg({
         'Volume_total_MWh': 'sum',
-        'N° DEPOT': 'count'
+        count_col: 'count'
     }).reset_index()
 
     df_grouped.columns = ['Période_Tri', 'Période', 'Volume_MWh', 'Nb_Dossiers']
@@ -638,7 +645,7 @@ def create_volume_evolution_chart(df):
         fig_volume.update_yaxes(title_text="Nombre de dossiers", secondary_y=True)
         fig_volume.update_layout(height=400, hovermode='x unified')
 
-        st.plotly_chart(fig_volume, width='stretch')
+        st.plotly_chart(fig_volume, use_container_width=True)
 
     with col2:
         st.subheader(f"📈 Taux de Croissance {title_suffix}")
@@ -675,7 +682,7 @@ def create_volume_evolution_chart(df):
                 )
             )
             fig_growth.add_hline(y=0, line_dash="dash", line_color="gray", line_width=1)
-            st.plotly_chart(fig_growth, width='stretch')
+            st.plotly_chart(fig_growth, use_container_width=True)
         else:
             st.info("Pas assez de données pour calculer la croissance")
 
@@ -735,22 +742,23 @@ def create_volume_evolution_chart(df):
                 hovermode='x unified'
             )
 
-            st.plotly_chart(fig_new, width='stretch')
+            st.plotly_chart(fig_new, use_container_width=True)
 
         with col2:
             st.markdown("#### 📋 Détails par année")
-            annee_selectionnee = st.selectbox(
-                "Sélectionner une année",
-                options=sorted(nouvelles_fiches['Année'].unique(), reverse=True)
-            )
+            if len(nouvelles_fiches) > 0:
+                annee_selectionnee = st.selectbox(
+                    "Sélectionner une année",
+                    options=sorted(nouvelles_fiches['Année'].dropna().unique(), reverse=True)
+                )
 
-            nouvelles_cette_annee = first_appearance[
-                first_appearance['Première_Année'] == annee_selectionnee
-                ][['Code équipement', 'Volume_Total_GWh']].sort_values('Volume_Total_GWh', ascending=False)
+                nouvelles_cette_annee = first_appearance[
+                    first_appearance['Première_Année'] == annee_selectionnee
+                    ][['Code équipement', 'Volume_Total_GWh']].sort_values('Volume_Total_GWh', ascending=False)
 
-            st.write(f"**{len(nouvelles_cette_annee)} nouvelle(s) fiche(s) en {int(annee_selectionnee)}:**")
-            for _, row in nouvelles_cette_annee.iterrows():
-                st.write(f"- {row['Code équipement']}: {row['Volume_Total_GWh']:.2f} GWh")
+                st.write(f"**{len(nouvelles_cette_annee)} nouvelle(s) fiche(s) en {int(annee_selectionnee)}:**")
+                for _, row in nouvelles_cette_annee.iterrows():
+                    st.write(f"- {row['Code équipement']}: {row['Volume_Total_GWh']:.2f} GWh")
 
     # Répartition Précarité vs Classique
     st.markdown("---")
@@ -771,7 +779,7 @@ def create_volume_evolution_chart(df):
                 texttemplate='%{label}<br>%{percent}<br>%{value:.1f} GWh'
             )])
             fig_pie.update_layout(height=350)
-            st.plotly_chart(fig_pie, width='stretch')
+            st.plotly_chart(fig_pie, use_container_width=True)
 
     with col2:
         st.subheader(f"📈 Évolution {title_suffix} Précarité/Classique (GWh cumac)")
@@ -826,7 +834,7 @@ def create_volume_evolution_chart(df):
                 yaxis_title="Volume (GWh cumac)",
                 height=350
             )
-            st.plotly_chart(fig_evol_prec, width='stretch')
+            st.plotly_chart(fig_evol_prec, use_container_width=True)
 
 
 def create_geographic_analysis(df):
@@ -843,9 +851,12 @@ def create_geographic_analysis(df):
         st.warning("Aucune donnée géographique valide trouvée")
         return
 
+    # Vérifier que N° DEPOT existe
+    count_col = 'N° DEPOT' if 'N° DEPOT' in df_geo.columns else df_geo.columns[0]
+
     geo_agg = df_geo.groupby('Département').agg({
         'Volume_total_MWh': 'sum',
-        'N° DEPOT': 'count'
+        count_col: 'count'
     }).reset_index()
     geo_agg.columns = ['Département', 'Volume_GWh', 'Nb_Dossiers']
     geo_agg['Volume_GWh'] = geo_agg['Volume_GWh'] / 1000
@@ -862,7 +873,7 @@ def create_geographic_analysis(df):
     display_geo['Volume_Moyen'] = display_geo['Volume_Moyen'].apply(lambda x: f"{x:,.2f}".replace(',', ' '))
     display_geo.columns = ['Département', 'Volume Total (GWh cumac)', 'Nb Dossiers', 'Volume Moyen (GWh/dossier)']
 
-    st.dataframe(display_geo, width="stretch", height=600)
+    st.dataframe(display_geo, use_container_width=True, height=600)
 
     # Statistiques récapitulatives
     st.markdown("---")
@@ -892,9 +903,12 @@ def create_equipment_analysis(df):
         st.warning("Les données d'équipement ne sont pas disponibles")
         return
 
+    # Vérifier que N° DEPOT existe
+    count_col = 'N° DEPOT' if 'N° DEPOT' in df.columns else df.columns[0]
+
     equip_agg = df.groupby('Code équipement').agg({
         'Volume_total_MWh': 'sum',
-        'N° DEPOT': 'count'
+        count_col: 'count'
     }).reset_index()
     equip_agg.columns = ['Code équipement', 'Volume_GWh', 'Nb_Dossiers']
     equip_agg['Volume_GWh'] = equip_agg['Volume_GWh'] / 1000
@@ -936,7 +950,7 @@ def create_equipment_analysis(df):
         )
         fig_equip.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='LightGray')
 
-        st.plotly_chart(fig_equip, width='stretch')
+        st.plotly_chart(fig_equip, use_container_width=True)
 
     with col2:
         st.subheader("📋 Tableau détaillé")
@@ -944,7 +958,7 @@ def create_equipment_analysis(df):
         display_equip['Volume_GWh'] = display_equip['Volume_GWh'].apply(lambda x: f"{x:,.2f}".replace(',', ' '))
         display_equip['Nb_Dossiers'] = display_equip['Nb_Dossiers'].apply(lambda x: f"{x:,}".replace(',', ' '))
         display_equip.columns = ['Code équipement', 'Volume (GWh cumac)', 'Nb Dossiers']
-        st.dataframe(display_equip, width="stretch", height=500)
+        st.dataframe(display_equip, use_container_width=True, height=500)
 
     # Camembert de répartition
     st.markdown("---")
@@ -979,7 +993,7 @@ def create_equipment_analysis(df):
             hovertemplate='<b>%{label}</b><br>Volume: %{value:.2f} GWh<br>Part: %{percent}<extra></extra>'
         )
         fig_pie.update_layout(height=450)
-        st.plotly_chart(fig_pie, width='stretch')
+        st.plotly_chart(fig_pie, use_container_width=True)
 
     with col2:
         st.markdown("#### 📊 Statistiques")
@@ -1011,12 +1025,16 @@ def create_installer_performance(df):
         lambda x: x.value_counts().index[0] if len(x) > 0 else ''
     ).reset_index()
 
+    # Vérifier que N° DEPOT existe
+    count_col = 'N° DEPOT' if 'N° DEPOT' in df.columns else df.columns[0]
+
     installer_agg = df.groupby('N° d\'identification du professionnel').agg({
         'Volume_total_MWh': 'sum',
-        'N° DEPOT': 'count'
+        count_col: 'count'
     }).reset_index()
 
     installer_agg = installer_agg.merge(siren_raison, on='N° d\'identification du professionnel')
+    installer_agg.columns = ['N° d\'identification du professionnel', 'Volume_total_MWh', 'N° DEPOT', 'Raison sociale du professionnel']
 
     # FILTRES AVANCÉS
     st.subheader("🔍 Filtres")
@@ -1113,7 +1131,7 @@ def create_installer_performance(df):
             )
             fig_camembert.update_traces(textposition='inside', textinfo='percent+label')
             fig_camembert.update_layout(height=500)
-            st.plotly_chart(fig_camembert, width='stretch')
+            st.plotly_chart(fig_camembert, use_container_width=True)
         else:
             st.warning("Pas assez de données pour afficher le graphique.")
 
@@ -1136,12 +1154,15 @@ def create_installer_performance(df):
         return
 
     # Calcul des moyennes de délais
-    agg_delais = {'N° DEPOT': 'count'}
+    agg_delais = {count_col: 'count'}
     for col in available_delais.values():
         agg_delais[col] = 'mean'
 
     df_delais = df.groupby('N° d\'identification du professionnel').agg(agg_delais).reset_index()
     df_delais = df_delais.merge(siren_raison, on='N° d\'identification du professionnel')
+
+    # Renommer la colonne de comptage
+    df_delais = df_delais.rename(columns={count_col: 'N° DEPOT'})
 
     df_delais = df_delais[df_delais['N° DEPOT'] >= min_dossiers]
     if search_installer:
@@ -1176,7 +1197,7 @@ def create_installer_performance(df):
     fig_delais.update_traces(texttemplate='%{text:.1f} j', textposition='outside')
     fig_delais.update_layout(height=500,
                              yaxis={'categoryorder': 'total ascending' if ascending_order else 'total descending'})
-    st.plotly_chart(fig_delais, width='stretch')
+    st.plotly_chart(fig_delais, use_container_width=True)
 
     # Tableau récapitulatif
     with st.expander("📋 Voir le tableau détaillé des délais par installateur"):
@@ -1192,7 +1213,7 @@ def create_installer_performance(df):
             if col in display_table.columns:
                 display_table[col] = display_table[col].round(1)
 
-        st.dataframe(display_table, width="stretch")
+        st.dataframe(display_table, use_container_width=True)
 
 
 def create_controle_synthese_analysis(df_synthese, df_detail):
@@ -1201,6 +1222,15 @@ def create_controle_synthese_analysis(df_synthese, df_detail):
 
     if df_synthese is None or len(df_synthese) == 0:
         st.warning("⚠️ Aucune donnée de synthèse disponible avec les filtres actuels.")
+        return
+
+    # Vérifier les colonnes nécessaires
+    if 'Statut_Synthese' not in df_synthese.columns:
+        st.warning("⚠️ La colonne 'Statut_Synthese' n'est pas disponible.")
+        return
+
+    if 'Volume delivre' not in df_synthese.columns or 'Volume demande' not in df_synthese.columns:
+        st.warning("⚠️ Les colonnes de volumes ne sont pas disponibles.")
         return
 
     # FILTRAGE - On ne prend que les dépôts avec un volume délivré > 0
@@ -1221,8 +1251,12 @@ def create_controle_synthese_analysis(df_synthese, df_detail):
     vol_retire = vol_demande - vol_delivre
 
     # Calcul des opérations
-    ops_demande = df_valid['Nombre demande operation'].sum()
-    ops_valide = df_valid['Nombre d\'opérations validées'].sum()
+    ops_demande = 0
+    ops_valide = 0
+    if 'Nombre demande operation' in df_valid.columns:
+        ops_demande = df_valid['Nombre demande operation'].sum()
+    if 'Nombre d\'opérations validées' in df_valid.columns:
+        ops_valide = df_valid['Nombre d\'opérations validées'].sum()
     ops_retire = ops_demande - ops_valide
 
     # Calcul des taux
@@ -1354,10 +1388,10 @@ def create_controle_synthese_analysis(df_synthese, df_detail):
             if 'Perte (kWh)' in cols_to_show:
                 st.dataframe(
                     df_alert[cols_to_show].sort_values('Perte (kWh)', ascending=False),
-                    width="stretch"
+                    use_container_width=True
                 )
             else:
-                st.dataframe(df_alert[cols_to_show], width="stretch")
+                st.dataframe(df_alert[cols_to_show], use_container_width=True)
 
         with col_alert2:
             if 'Type de Retrait' in df_alert.columns:
@@ -1410,12 +1444,14 @@ def create_controle_synthese_analysis(df_synthese, df_detail):
                         color_continuous_scale='Reds'
                     )
                     fig_risk.update_layout(yaxis={'categoryorder': 'total ascending'}, height=350)
-                    st.plotly_chart(fig_risk, width='stretch')
+                    st.plotly_chart(fig_risk, use_container_width=True)
 
             with st.expander("📋 Voir le détail des dossiers à risque d'expiration"):
-                st.dataframe(
-                    df_risk[['N° DEPOT', 'Date de fin', 'Date depot', 'Date_Exp', 'Raison sociale du professionnel']],
-                    width="stretch")
+                cols_exp = ['Date de fin', 'Date depot', 'Date_Exp', 'Raison sociale du professionnel']
+                if 'N° DEPOT' in df_risk.columns:
+                    cols_exp = ['N° DEPOT'] + cols_exp
+                cols_exp = [c for c in cols_exp if c in df_risk.columns]
+                st.dataframe(df_risk[cols_exp], use_container_width=True)
         else:
             st.success("✅ Aucun dossier déposé en zone critique d'expiration.")
     else:
@@ -1462,13 +1498,14 @@ def create_iso_quality_analysis(df, df_synthese):
 
     with kpi3:
         if 'Date depot' in df.columns and 'Date Insertion' in df.columns:
-            df['Delai_Insertion'] = (df['Date depot'] - df['Date Insertion']).dt.days
-            avg_delai = df['Delai_Insertion'].mean()
-            hors_delai = len(df[df['Delai_Insertion'] > 14])
+            df_temp = df.copy()
+            df_temp['Delai_Insertion'] = (df_temp['Date depot'] - df_temp['Date Insertion']).dt.days
+            avg_delai = df_temp['Delai_Insertion'].mean()
+            hors_delai = len(df_temp[df_temp['Delai_Insertion'] > 14])
 
             st.metric(
                 label="⏱️ Délai Insertion",
-                value=f"{avg_delai:.1f} j",
+                value=f"{avg_delai:.1f} j" if pd.notna(avg_delai) else "N/A",
                 delta=f"{hors_delai} dossiers > 14j",
                 delta_color="inverse"
             )
@@ -1503,22 +1540,30 @@ def create_iso_quality_analysis(df, df_synthese):
     col_evol1, col_evol2 = st.columns(2)
 
     with col_evol1:
-        if 'Delai_Insertion' in df.columns and 'Date depot' in df.columns:
-            df_evol_ins = df.dropna(subset=['Delai_Insertion', 'Date depot']).copy()
-            df_evol_ins['Mois'] = df_evol_ins['Date depot'].dt.to_period('M').astype(str)
+        if 'Date depot' in df.columns and 'Date Insertion' in df.columns:
+            df_evol_ins = df.dropna(subset=['Date depot', 'Date Insertion']).copy()
+            df_evol_ins['Delai_Insertion'] = (df_evol_ins['Date depot'] - df_evol_ins['Date Insertion']).dt.days
+            df_evol_ins = df_evol_ins.dropna(subset=['Delai_Insertion'])
+            
+            if len(df_evol_ins) > 0:
+                df_evol_ins['Mois'] = df_evol_ins['Date depot'].dt.to_period('M').astype(str)
 
-            evol_ins = df_evol_ins.groupby('Mois')['Delai_Insertion'].mean().reset_index()
+                evol_ins = df_evol_ins.groupby('Mois')['Delai_Insertion'].mean().reset_index()
 
-            fig_ins = px.line(
-                evol_ins,
-                x='Mois',
-                y='Delai_Insertion',
-                title="Évolution du Délai Moyen d'Insertion",
-                markers=True
-            )
-            fig_ins.add_hline(y=14, line_dash="dash", line_color="red", annotation_text="Cible 14j")
-            fig_ins.update_layout(height=300, xaxis_title=None, yaxis_title="Jours")
-            st.plotly_chart(fig_ins, width='stretch')
+                fig_ins = px.line(
+                    evol_ins,
+                    x='Mois',
+                    y='Delai_Insertion',
+                    title="Évolution du Délai Moyen d'Insertion",
+                    markers=True
+                )
+                fig_ins.add_hline(y=14, line_dash="dash", line_color="red", annotation_text="Cible 14j")
+                fig_ins.update_layout(height=300, xaxis_title=None, yaxis_title="Jours")
+                st.plotly_chart(fig_ins, use_container_width=True)
+            else:
+                st.info("Pas de données de délai d'insertion disponibles.")
+        else:
+            st.info("Colonnes manquantes pour l'analyse des délais d'insertion.")
 
     with col_evol2:
         if 'Date de fin' in df.columns and 'Date depot' in df.columns:
@@ -1541,7 +1586,7 @@ def create_iso_quality_analysis(df, df_synthese):
                 color_discrete_sequence=['orange']
             )
             fig_risk_evol.update_layout(height=300, xaxis_title=None, yaxis_title="% Dossiers à Risque")
-            st.plotly_chart(fig_risk_evol, width='stretch')
+            st.plotly_chart(fig_risk_evol, use_container_width=True)
 
     st.markdown("---")
 
@@ -1550,25 +1595,31 @@ def create_iso_quality_analysis(df, df_synthese):
 
     with col_g1:
         st.caption("📊 **Distribution des délais d'insertion (Cible : 14j)**")
-        if 'Delai_Insertion' in df.columns:
-            df_clean_delai = df.dropna(subset=['Delai_Insertion'])
-            fig_hist = px.histogram(
-                df_clean_delai,
-                x='Delai_Insertion',
-                nbins=20,
-                color_discrete_sequence=['#636efa']
-            )
-            fig_hist.add_vline(x=14, line_width=2, line_dash="dash", line_color="red", annotation_text="Cible")
+        if 'Date depot' in df.columns and 'Date Insertion' in df.columns:
+            df_hist = df.dropna(subset=['Date depot', 'Date Insertion']).copy()
+            df_hist['Delai_Insertion'] = (df_hist['Date depot'] - df_hist['Date Insertion']).dt.days
+            df_clean_delai = df_hist.dropna(subset=['Delai_Insertion'])
+            
+            if len(df_clean_delai) > 0:
+                fig_hist = px.histogram(
+                    df_clean_delai,
+                    x='Delai_Insertion',
+                    nbins=20,
+                    color_discrete_sequence=['#636efa']
+                )
+                fig_hist.add_vline(x=14, line_width=2, line_dash="dash", line_color="red", annotation_text="Cible")
 
-            fig_hist.update_layout(
-                height=250,
-                margin=dict(l=0, r=0, t=0, b=0),
-                yaxis_title=None,
-                xaxis_title="Jours",
-                plot_bgcolor='white',
-                showlegend=False
-            )
-            st.plotly_chart(fig_hist, width='stretch')
+                fig_hist.update_layout(
+                    height=250,
+                    margin=dict(l=0, r=0, t=0, b=0),
+                    yaxis_title=None,
+                    xaxis_title="Jours",
+                    plot_bgcolor='white',
+                    showlegend=False
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+            else:
+                st.info("Données insuffisantes pour l'histogramme.")
         else:
             st.info("Données insuffisantes pour l'histogramme.")
 
@@ -1578,13 +1629,13 @@ def create_iso_quality_analysis(df, df_synthese):
 
             with tab_d1:
                 if 'Erreur de saisi' in df.columns and df['Erreur de saisi'].sum() > 0:
-                    st.dataframe(df[df['Erreur de saisi'] == 1], width="stretch", height=200)
+                    st.dataframe(df[df['Erreur de saisi'] == 1], use_container_width=True, height=200)
                 else:
                     st.success("Zéro erreur de saisie !")
 
             with tab_d2:
                 if df_synthese is not None and 'Volume demande' in df_synthese.columns:
-                    st.dataframe(df_synthese[df_synthese['Volume demande'] < 50_000_000], width="stretch", height=200)
+                    st.dataframe(df_synthese[df_synthese['Volume demande'] < 50_000_000], use_container_width=True, height=200)
                 else:
                     st.info("Pas de données.")
 
@@ -1594,6 +1645,10 @@ def create_rse_analysis(df, taux_efficacite=0.45):
     st.header("🌱 Analyse RSE - Impact Environnemental et Social")
 
     metrics = calculate_rse_metrics(df, taux_efficacite)
+    
+    if not metrics:
+        st.warning("Données insuffisantes pour calculer les métriques RSE.")
+        return
 
     # PARAMÈTRE TAUX EFFICACITÉ
     st.sidebar.markdown("---")
@@ -1601,7 +1656,7 @@ def create_rse_analysis(df, taux_efficacite=0.45):
     taux_efficacite_input = st.sidebar.slider(
         "Taux d'efficacité énergétique",
         min_value=0.40,
-        max_value=1,
+        max_value=1.0,
         value=0.45,
         step=0.05,
         help="Coefficient de réalisation des économies d'énergie réelles"
@@ -1687,7 +1742,7 @@ def create_rse_analysis(df, taux_efficacite=0.45):
                                   x=0.5, y=0.5, font_size=20, showarrow=False)]
             )
 
-            st.plotly_chart(fig_prec, width='stretch')
+            st.plotly_chart(fig_prec, use_container_width=True)
 
             st.info(f"**{pct_prec:.1f}%** des volumes concernent des opérations en précarité énergétique")
 
@@ -1708,7 +1763,7 @@ def create_rse_analysis(df, taux_efficacite=0.45):
             fig_secteur.update_traces(textinfo='label+percent', textfont_size=12)
             fig_secteur.update_layout(height=350, showlegend=True)
 
-            st.plotly_chart(fig_secteur, width='stretch')
+            st.plotly_chart(fig_secteur, use_container_width=True)
 
     st.markdown("---")
 
@@ -1732,7 +1787,7 @@ def create_rse_analysis(df, taux_efficacite=0.45):
                 color_discrete_sequence=['#2a9d8f']
             )
             fig_evol.update_layout(height=350)
-            st.plotly_chart(fig_evol, width='stretch')
+            st.plotly_chart(fig_evol, use_container_width=True)
 
     with col2:
         st.markdown("#### 🏆 Top 5 Opérations par Impact CO₂")
@@ -1761,7 +1816,7 @@ def create_rse_analysis(df, taux_efficacite=0.45):
                 )
                 fig_top_co2.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                 fig_top_co2.update_layout(height=350, showlegend=False)
-                st.plotly_chart(fig_top_co2, width='stretch')
+                st.plotly_chart(fig_top_co2, use_container_width=True)
             else:
                 st.warning("Toutes les opérations sont de type TRA")
         else:
@@ -1885,7 +1940,7 @@ def main():
 
             # Données brutes (optionnel)
             with st.expander("📋 Voir les données brutes (échantillon)"):
-                st.dataframe(filtered_df.head(100), width="stretch")
+                st.dataframe(filtered_df.head(100), use_container_width=True)
 
     else:
         # Instructions d'utilisation
