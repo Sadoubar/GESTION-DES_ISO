@@ -1600,8 +1600,8 @@ def create_rse_analysis(df, taux_efficacite=0.45):
     st.sidebar.subheader("⚙️ Paramètres RSE")
     taux_efficacite_input = st.sidebar.slider(
         "Taux d'efficacité énergétique",
-        min_value=0.30,
-        max_value=0.60,
+        min_value=0.40,
+        max_value=1,
         value=0.45,
         step=0.05,
         help="Coefficient de réalisation des économies d'énergie réelles"
