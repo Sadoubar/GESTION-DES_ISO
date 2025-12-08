@@ -41,6 +41,8 @@ EMISSION_CO2_KWH = 0.069  # kg CO2 par kWh
 CO2_PAR_ARBRE_AN = 20  # kg CO2 absorbé par arbre par an
 CO2_PAR_VOITURE_AN = 2700  # kg CO2 par voiture par an
 CONSO_MOYENNE_FOYER_KWH = 4200  # kWh/an
+HABITANTS_PAR_FOYER = 2.2  # Moyenne française INSEE
+PRIX_ELECTRICITE_KWH = 0.2516  # €/kWh TTC (tarif réglementé 2024-2025)
 
 # Configuration de la page
 st.set_page_config(
@@ -363,6 +365,12 @@ def calculate_rse_metrics(df, taux_efficacite=0.45):
     arbres_equivalent = co2_evite * 1000 / CO2_PAR_ARBRE_AN
     voitures_equivalent = co2_evite * 1000 / CO2_PAR_VOITURE_AN
     foyers_equivalent = gwh_reels * 1_000_000 / CONSO_MOYENNE_FOYER_KWH
+    
+    # Habitants équivalents
+    habitants_equivalent = foyers_equivalent * HABITANTS_PAR_FOYER
+    
+    # Coût électricité évité par an (en euros)
+    cout_electricite_evite = gwh_reels * 1_000_000 * PRIX_ELECTRICITE_KWH  # GWh -> kWh * prix
 
     # Précarité
     if 'Total_précarité_MWh' in df.columns and 'Volume_total_MWh' in df.columns:
@@ -379,6 +387,8 @@ def calculate_rse_metrics(df, taux_efficacite=0.45):
         'arbres_equivalent': arbres_equivalent,
         'voitures_equivalent': voitures_equivalent,
         'foyers_equivalent': foyers_equivalent,
+        'habitants_equivalent': habitants_equivalent,
+        'cout_electricite_evite': cout_electricite_evite,
         'pct_precarite': pct_precarite
     }
 
@@ -1800,24 +1810,39 @@ def create_rse_analysis(df, taux_efficacite=0.45):
 
     with col4:
         st.metric(
-            "🏠 Foyers Alimentés",
-            f"{metrics['foyers_equivalent']:,.0f}".replace(',', ' ')
+            "💰 Coût Électricité Évité",
+            f"{metrics['cout_electricite_evite']:,.0f} €/an".replace(',', ' '),
+            help=f"Basé sur {PRIX_ELECTRICITE_KWH:.4f} €/kWh (tarif réglementé 2024-2025)"
         )
 
-    col5, col6 = st.columns(2)
+    col5, col6, col7, col8 = st.columns(4)
 
     with col5:
         st.metric(
-            "🌲 Arbres Équivalents",
-            f"{metrics['arbres_equivalent']:,.0f} arbres".replace(',', ' '),
-            help="Basé sur 25 kg CO₂/arbre/an"
+            "🏠 Foyers Alimentés",
+            f"{metrics['foyers_equivalent']:,.0f}".replace(',', ' '),
+            help=f"Basé sur {CONSO_MOYENNE_FOYER_KWH:,} kWh/an par foyer".replace(',', ' ')
         )
 
     with col6:
         st.metric(
+            "👥 Habitants Équivalents",
+            f"{metrics['habitants_equivalent']:,.0f}".replace(',', ' '),
+            help=f"Basé sur {HABITANTS_PAR_FOYER} habitants/foyer (INSEE)"
+        )
+
+    with col7:
+        st.metric(
+            "🌲 Arbres Équivalents",
+            f"{metrics['arbres_equivalent']:,.0f} arbres".replace(',', ' '),
+            help=f"Basé sur {CO2_PAR_ARBRE_AN} kg CO₂/arbre/an"
+        )
+
+    with col8:
+        st.metric(
             "🚗 Voitures Retirées",
             f"{metrics['voitures_equivalent']:,.0f} voitures".replace(',', ' '),
-            help="Basé sur 2.8 tonnes CO₂/voiture/an"
+            help=f"Basé sur {CO2_PAR_VOITURE_AN/1000:.1f} tonnes CO₂/voiture/an"
         )
 
     st.markdown("---")
@@ -1941,11 +1966,12 @@ def create_rse_analysis(df, taux_efficacite=0.45):
     Grâce aux **{len(df):,}** dossiers CEE analysés :
 
     - 🌍 **{metrics['gwh_reels']:.2f} GWh** d'énergie économisée chaque année
+    - 💰 **{metrics['cout_electricite_evite']:,.0f} €** de coût électricité évité par an
     - 🌳 **{metrics['co2_evite']:,.0f} tonnes** de CO₂ évitées annuellement
-    - 🏠 Équivalent à alimenter **{metrics['foyers_equivalent']:,.0f} foyers** pendant un an
+    - 🏠 Équivalent à alimenter **{metrics['foyers_equivalent']:,.0f} foyers** ({metrics['habitants_equivalent']:,.0f} habitants) pendant un an
     - 🌲 Impact comparable à **{metrics['arbres_equivalent']:,.0f} arbres** plantés
     - 🚗 Équivaut à retirer **{metrics['voitures_equivalent']:,.0f} voitures** de la circulation
-    - 💰 **{metrics['pct_precarite']:.1f}%** des volumes concernent la **précarité énergétique**
+    - 💵 **{metrics['pct_precarite']:.1f}%** des volumes concernent la **précarité énergétique**
 
     **Contribution significative à la transition énergétique et à la lutte contre le changement climatique ! 🌟**
     """.replace(',', ' '))
