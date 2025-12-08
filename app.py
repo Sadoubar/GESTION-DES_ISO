@@ -351,7 +351,7 @@ def calculate_rse_metrics(df, taux_efficacite=0.45):
 
     # GWh réels annuels
     if 'Facteur_Conversion' in df.columns and 'Duree_Vie' in df.columns:
-        df['kWh_reels_annuels'] = (df['Volume_total'] * df['Facteur_Conversion'] / df['Duree_Vie']) * taux_efficacite
+        df['kWh_reels_annuels'] = df['Volume_total'] * df['Facteur_Conversion'] * taux_efficacite
         df['GWh_reels_annuels'] = df['kWh_reels_annuels'] / 1_000_000
         gwh_reels = df['GWh_reels_annuels'].sum()
     else:
