@@ -721,16 +721,16 @@ def create_volume_evolution_chart(df):
         text_positions = []
         for i in range(n_points):
             if i == 0:
-                text_positions.append('top right')
+                text_positions.append('middle right')
             elif i == n_points - 1:
-                text_positions.append('top left')
+                text_positions.append('middle left')
             else:
                 text_positions.append('top center')
         
         # Courbe des volumes (GWh) avec valeurs affichées
         fig_courbe.add_trace(go.Scatter(
-            x=df_grouped['Période'],
-            y=df_grouped['Volume_GWh'],
+            x=df_grouped['Période'].tolist(),
+            y=df_grouped['Volume_GWh'].tolist(),
             mode='lines+markers+text',
             name='Volume déposé (GWh cumac)',
             line=dict(color='#2563eb', width=3),
@@ -747,8 +747,8 @@ def create_volume_evolution_chart(df):
         if len(df_grouped) >= 3:
             df_grouped['Moyenne_Mobile'] = df_grouped['Volume_GWh'].rolling(window=3, min_periods=1).mean()
             fig_courbe.add_trace(go.Scatter(
-                x=df_grouped['Période'],
-                y=df_grouped['Moyenne_Mobile'],
+                x=df_grouped['Période'].tolist(),
+                y=df_grouped['Moyenne_Mobile'].tolist(),
                 mode='lines',
                 name='Tendance (MM3)',
                 line=dict(color='#dc2626', width=2, dash='dash'),
@@ -776,7 +776,7 @@ def create_volume_evolution_chart(df):
                 x=1
             ),
             plot_bgcolor='white',
-            margin=dict(l=60, r=60, t=80, b=60),  # Marges pour les labels
+            margin=dict(l=70, r=70, t=80, b=60),  # Marges pour les labels
             yaxis=dict(
                 gridcolor='lightgray', 
                 zeroline=True, 
@@ -785,7 +785,7 @@ def create_volume_evolution_chart(df):
             ),
             xaxis=dict(
                 tickangle=-45 if len(df_grouped) > 8 else 0,
-                range=[-0.5, len(df_grouped) - 0.5]  # Espace sur les côtés
+                type='category'  # Force le type catégorie
             )
         )
         
@@ -804,17 +804,17 @@ def create_volume_evolution_chart(df):
         text_positions_cumul = []
         for i in range(n_points):
             if i == 0:
-                text_positions_cumul.append('top right')
+                text_positions_cumul.append('middle right')
             elif i == n_points - 1:
-                text_positions_cumul.append('top left')
+                text_positions_cumul.append('middle left')
             else:
                 text_positions_cumul.append('top center')
         
         fig_cumul = go.Figure()
         
         fig_cumul.add_trace(go.Scatter(
-            x=df_grouped['Période'],
-            y=df_grouped['Volume_Cumule_GWh'],
+            x=df_grouped['Période'].tolist(),
+            y=df_grouped['Volume_Cumule_GWh'].tolist(),
             mode='lines+markers+text',
             name='Volume cumulé (GWh cumac)',
             line=dict(color='#059669', width=3),
@@ -841,7 +841,7 @@ def create_volume_evolution_chart(df):
             height=450,
             hovermode='x unified',
             plot_bgcolor='white',
-            margin=dict(l=60, r=60, t=80, b=60),  # Marges pour les labels
+            margin=dict(l=70, r=70, t=80, b=60),  # Marges pour les labels
             yaxis=dict(
                 gridcolor='lightgray', 
                 zeroline=True, 
@@ -850,7 +850,7 @@ def create_volume_evolution_chart(df):
             ),
             xaxis=dict(
                 tickangle=-45 if len(df_grouped) > 8 else 0,
-                range=[-0.5, len(df_grouped) - 0.5]  # Espace sur les côtés
+                type='category'  # Force le type catégorie
             )
         )
         
@@ -1835,6 +1835,262 @@ def create_iso_quality_analysis(df, df_synthese):
                     st.info("Pas de données.")
 
 
+def create_evolution_curves(df):
+    """Onglet dédié aux courbes d'évolution Précarité vs Classique"""
+    st.header("📈 Courbes d'Évolution - Précarité vs Classique")
+    
+    if 'Date depot' not in df.columns:
+        st.warning("⚠️ La colonne 'Date depot' est requise pour cette analyse.")
+        return
+    
+    if 'Total_précarité_MWh' not in df.columns or 'Total_classique_MWh' not in df.columns:
+        st.warning("⚠️ Les colonnes 'Total précarité' et 'Total classique' sont requises.")
+        return
+    
+    df_evol = df.dropna(subset=['Date depot']).copy()
+    
+    if len(df_evol) == 0:
+        st.warning("Aucune donnée avec une date de dépôt valide.")
+        return
+    
+    # Choix de la granularité
+    granularite = st.selectbox(
+        "Granularité temporelle",
+        ["Mensuel", "Trimestriel", "Annuel"],
+        index=2,  # Annuel par défaut
+        key="granularite_precarite"
+    )
+    
+    # Préparation des données selon la granularité
+    if granularite == "Mensuel":
+        df_evol['Période'] = df_evol['Date depot'].dt.strftime('%Y-%m')
+        df_evol['Période_Sort'] = df_evol['Date depot'].dt.to_period('M')
+        title_suffix = "Mensuelle"
+    elif granularite == "Trimestriel":
+        df_evol['Période'] = df_evol['Date depot'].dt.year.astype(str) + '-T' + df_evol['Date depot'].dt.quarter.astype(str)
+        df_evol['Période_Sort'] = df_evol['Date depot'].dt.to_period('Q')
+        title_suffix = "Trimestrielle"
+    else:  # Annuel
+        df_evol['Période'] = df_evol['Date depot'].dt.year.astype(str)
+        df_evol['Période_Sort'] = df_evol['Date depot'].dt.to_period('Y')
+        title_suffix = "Annuelle"
+    
+    # Agrégation
+    df_grouped = df_evol.groupby(['Période_Sort', 'Période']).agg({
+        'Total_précarité_MWh': 'sum',
+        'Total_classique_MWh': 'sum'
+    }).reset_index()
+    
+    df_grouped = df_grouped.sort_values('Période_Sort')
+    df_grouped['Précarité_GWh'] = df_grouped['Total_précarité_MWh'] / 1000
+    df_grouped['Classique_GWh'] = df_grouped['Total_classique_MWh'] / 1000
+    df_grouped['Total_GWh'] = df_grouped['Précarité_GWh'] + df_grouped['Classique_GWh']
+    
+    # Calcul du pourcentage précarité
+    df_grouped['Pct_Precarite'] = (df_grouped['Précarité_GWh'] / df_grouped['Total_GWh'] * 100).round(1)
+    
+    st.markdown("---")
+    
+    # === COURBES D'ÉVOLUTION ===
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader(f"📊 Évolution {title_suffix} Précarité vs Classique")
+        
+        # Formater les valeurs
+        n_points = len(df_grouped)
+        
+        # Positions de texte
+        def get_text_positions(n):
+            positions = []
+            for i in range(n):
+                if i == 0:
+                    positions.append('middle right')
+                elif i == n - 1:
+                    positions.append('middle left')
+                else:
+                    positions.append('top center')
+            return positions
+        
+        text_pos = get_text_positions(n_points)
+        
+        # Valeurs formatées
+        val_prec = df_grouped['Précarité_GWh'].apply(lambda x: f"{x:.1f}").tolist()
+        val_class = df_grouped['Classique_GWh'].apply(lambda x: f"{x:.1f}").tolist()
+        
+        fig_evol = go.Figure()
+        
+        # Courbe Précarité
+        fig_evol.add_trace(go.Scatter(
+            x=df_grouped['Période'].tolist(),
+            y=df_grouped['Précarité_GWh'].tolist(),
+            mode='lines+markers+text',
+            name='Précarité (GWh)',
+            line=dict(color='#e76f51', width=3),
+            marker=dict(size=10, color='#e76f51'),
+            text=val_prec,
+            textposition=text_pos,
+            textfont=dict(size=11, color='#c1121f', family='Arial Black'),
+            hovertemplate='<b>%{x}</b><br>Précarité: %{y:.2f} GWh cumac<extra></extra>'
+        ))
+        
+        # Courbe Classique
+        fig_evol.add_trace(go.Scatter(
+            x=df_grouped['Période'].tolist(),
+            y=df_grouped['Classique_GWh'].tolist(),
+            mode='lines+markers+text',
+            name='Classique (GWh)',
+            line=dict(color='#457b9d', width=3),
+            marker=dict(size=10, color='#457b9d'),
+            text=val_class,
+            textposition=text_pos,
+            textfont=dict(size=11, color='#1d3557', family='Arial Black'),
+            hovertemplate='<b>%{x}</b><br>Classique: %{y:.2f} GWh cumac<extra></extra>'
+        ))
+        
+        y_max = max(df_grouped['Précarité_GWh'].max(), df_grouped['Classique_GWh'].max())
+        
+        fig_evol.update_layout(
+            xaxis_title="Période",
+            yaxis_title="Volume (GWh cumac)",
+            height=450,
+            hovermode='x unified',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            plot_bgcolor='white',
+            margin=dict(l=70, r=70, t=50, b=60),
+            yaxis=dict(gridcolor='lightgray', range=[0, y_max * 1.2]),
+            xaxis=dict(tickangle=-45 if n_points > 6 else 0, type='category')
+        )
+        
+        st.plotly_chart(fig_evol, use_container_width=True)
+    
+    with col2:
+        st.subheader(f"📈 Évolution du % Précarité")
+        
+        val_pct = df_grouped['Pct_Precarite'].apply(lambda x: f"{x:.1f}%").tolist()
+        
+        fig_pct = go.Figure()
+        
+        fig_pct.add_trace(go.Scatter(
+            x=df_grouped['Période'].tolist(),
+            y=df_grouped['Pct_Precarite'].tolist(),
+            mode='lines+markers+text',
+            name='% Précarité',
+            line=dict(color='#9d4edd', width=3),
+            marker=dict(size=12, color='#9d4edd', symbol='diamond'),
+            text=val_pct,
+            textposition=text_pos,
+            textfont=dict(size=12, color='#7b2cbf', family='Arial Black'),
+            fill='tozeroy',
+            fillcolor='rgba(157, 78, 221, 0.1)',
+            hovertemplate='<b>%{x}</b><br>Part Précarité: %{y:.1f}%<extra></extra>'
+        ))
+        
+        # Ligne de référence à 50%
+        fig_pct.add_hline(y=50, line_dash="dash", line_color="gray", 
+                         annotation_text="50%", annotation_position="right")
+        
+        fig_pct.update_layout(
+            xaxis_title="Période",
+            yaxis_title="Part Précarité (%)",
+            height=450,
+            hovermode='x unified',
+            plot_bgcolor='white',
+            margin=dict(l=70, r=70, t=50, b=60),
+            yaxis=dict(gridcolor='lightgray', range=[0, 100]),
+            xaxis=dict(tickangle=-45 if n_points > 6 else 0, type='category')
+        )
+        
+        st.plotly_chart(fig_pct, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # === GRAPHIQUE EMPILÉ ===
+    st.subheader(f"📊 Volume Total {title_suffix} (Empilé)")
+    
+    val_total = df_grouped['Total_GWh'].apply(lambda x: f"{x:.1f}").tolist()
+    
+    fig_stack = go.Figure()
+    
+    fig_stack.add_trace(go.Bar(
+        x=df_grouped['Période'].tolist(),
+        y=df_grouped['Précarité_GWh'].tolist(),
+        name='Précarité',
+        marker_color='#e76f51',
+        text=df_grouped['Précarité_GWh'].apply(lambda x: f"{x:.1f}").tolist(),
+        textposition='inside',
+        textfont=dict(size=11, color='white'),
+        hovertemplate='<b>%{x}</b><br>Précarité: %{y:.2f} GWh<extra></extra>'
+    ))
+    
+    fig_stack.add_trace(go.Bar(
+        x=df_grouped['Période'].tolist(),
+        y=df_grouped['Classique_GWh'].tolist(),
+        name='Classique',
+        marker_color='#457b9d',
+        text=df_grouped['Classique_GWh'].apply(lambda x: f"{x:.1f}").tolist(),
+        textposition='inside',
+        textfont=dict(size=11, color='white'),
+        hovertemplate='<b>%{x}</b><br>Classique: %{y:.2f} GWh<extra></extra>'
+    ))
+    
+    # Ajouter les totaux au-dessus des barres
+    fig_stack.add_trace(go.Scatter(
+        x=df_grouped['Période'].tolist(),
+        y=df_grouped['Total_GWh'].tolist(),
+        mode='text',
+        text=val_total,
+        textposition='top center',
+        textfont=dict(size=12, color='black', family='Arial Black'),
+        showlegend=False,
+        hoverinfo='skip'
+    ))
+    
+    fig_stack.update_layout(
+        barmode='stack',
+        xaxis_title="Période",
+        yaxis_title="Volume (GWh cumac)",
+        height=400,
+        hovermode='x unified',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        plot_bgcolor='white',
+        margin=dict(l=70, r=70, t=50, b=60),
+        yaxis=dict(gridcolor='lightgray', range=[0, df_grouped['Total_GWh'].max() * 1.15]),
+        xaxis=dict(tickangle=-45 if n_points > 8 else 0, type='category')
+    )
+    
+    st.plotly_chart(fig_stack, use_container_width=True)
+    
+    # === KPIs RÉCAPITULATIFS ===
+    st.markdown("---")
+    st.subheader("📋 Récapitulatif")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    total_prec = df_grouped['Précarité_GWh'].sum()
+    total_class = df_grouped['Classique_GWh'].sum()
+    total_global = total_prec + total_class
+    pct_prec_global = (total_prec / total_global * 100) if total_global > 0 else 0
+    
+    with col1:
+        st.metric("🔴 Total Précarité", f"{total_prec:.1f} GWh")
+    
+    with col2:
+        st.metric("🔵 Total Classique", f"{total_class:.1f} GWh")
+    
+    with col3:
+        st.metric("📊 Total Global", f"{total_global:.1f} GWh")
+    
+    with col4:
+        st.metric("📈 % Précarité Global", f"{pct_prec_global:.1f}%")
+    
+    # Tableau détaillé
+    with st.expander("📋 Voir le tableau détaillé"):
+        display_df = df_grouped[['Période', 'Précarité_GWh', 'Classique_GWh', 'Total_GWh', 'Pct_Precarite']].copy()
+        display_df.columns = ['Période', 'Précarité (GWh)', 'Classique (GWh)', 'Total (GWh)', '% Précarité']
+        st.dataframe(display_df, use_container_width=True)
+
+
 def create_rse_analysis(df, taux_efficacite=0.45):
     """Analyse RSE condensée"""
     st.header("🌱 Analyse RSE - Impact Environnemental et Social")
@@ -2122,8 +2378,9 @@ def main():
             st.markdown("---")
 
             # Onglets pour organiser les analyses
-            tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
                 "📈 Évolution Volumes",
+                "📉 Précarité/Classique",
                 "🔧 Équipements",
                 "🏢 Installateurs",
                 "🛡️ Contrôle & Conformité",
@@ -2135,20 +2392,23 @@ def main():
                 create_volume_evolution_chart(filtered_df)
 
             with tab2:
-                create_equipment_analysis(filtered_df)
+                create_evolution_curves(filtered_df)
 
             with tab3:
-                create_installer_performance(filtered_df)
+                create_equipment_analysis(filtered_df)
 
             with tab4:
+                create_installer_performance(filtered_df)
+
+            with tab5:
                 # Utilisation de filtered_synthese au lieu de df_synthese
                 create_controle_synthese_analysis(filtered_synthese, filtered_df)
 
-            with tab5:
+            with tab6:
                 # Utilisation de filtered_synthese pour les KPIs Qualité
                 create_iso_quality_analysis(filtered_df, filtered_synthese)
 
-            with tab6:
+            with tab7:
                 create_rse_analysis(filtered_df)
 
             # Données brutes (optionnel)
