@@ -42,7 +42,7 @@ CO2_PAR_ARBRE_AN = 20  # kg CO2 absorbé par arbre par an
 CO2_PAR_VOITURE_AN = 2700  # kg CO2 par voiture par an
 CONSO_MOYENNE_FOYER_KWH = 4200  # kWh/an
 HABITANTS_PAR_FOYER = 2.2  # Moyenne française INSEE
-PRIX_ELECTRICITE_KWH = 0.2516  # €/kWh TTC (tarif réglementé 2024-2025)
+PRIX_ELECTRICITE_KWH = 0.19  # €/kWh TTC (tarif réglementé 2024-2025)
 HEURES_PAR_AN = 8760  # 24h × 365 jours
 
 # Configuration de la page
