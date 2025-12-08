@@ -686,6 +686,115 @@ def create_volume_evolution_chart(df):
         else:
             st.info("Pas assez de données pour calculer la croissance")
 
+    # === NOUVELLE SECTION : Courbe d'évolution des volumes déposés ===
+    st.markdown("---")
+    st.subheader(f"📉 Courbe d'Évolution des Volumes Déposés ({title_suffix})")
+    
+    col_courbe1, col_courbe2 = st.columns(2)
+    
+    with col_courbe1:
+        # Courbe simple d'évolution des volumes
+        fig_courbe = go.Figure()
+        
+        # Courbe des volumes (GWh)
+        fig_courbe.add_trace(go.Scatter(
+            x=df_grouped['Période'],
+            y=df_grouped['Volume_GWh'],
+            mode='lines+markers',
+            name='Volume déposé (GWh)',
+            line=dict(color='#2563eb', width=3),
+            marker=dict(size=8, color='#2563eb'),
+            fill='tozeroy',
+            fillcolor='rgba(37, 99, 235, 0.1)',
+            hovertemplate='<b>%{x}</b><br>Volume: %{y:.2f} GWh cumac<extra></extra>'
+        ))
+        
+        # Ajouter une ligne de tendance (moyenne mobile)
+        if len(df_grouped) >= 3:
+            df_grouped['Moyenne_Mobile'] = df_grouped['Volume_GWh'].rolling(window=3, min_periods=1).mean()
+            fig_courbe.add_trace(go.Scatter(
+                x=df_grouped['Période'],
+                y=df_grouped['Moyenne_Mobile'],
+                mode='lines',
+                name='Tendance (MM3)',
+                line=dict(color='#dc2626', width=2, dash='dash'),
+                hovertemplate='<b>%{x}</b><br>Tendance: %{y:.2f} GWh<extra></extra>'
+            ))
+        
+        fig_courbe.update_layout(
+            title=f"Évolution {title_suffix} des Volumes Déposés",
+            xaxis_title="Période",
+            yaxis_title="Volume (GWh cumac)",
+            height=400,
+            hovermode='x unified',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            plot_bgcolor='white',
+            yaxis=dict(gridcolor='lightgray', zeroline=True, zerolinecolor='lightgray')
+        )
+        
+        st.plotly_chart(fig_courbe, use_container_width=True)
+    
+    with col_courbe2:
+        # Courbe cumulative des volumes
+        df_grouped['Volume_Cumule_GWh'] = df_grouped['Volume_GWh'].cumsum()
+        
+        fig_cumul = go.Figure()
+        
+        fig_cumul.add_trace(go.Scatter(
+            x=df_grouped['Période'],
+            y=df_grouped['Volume_Cumule_GWh'],
+            mode='lines+markers',
+            name='Volume cumulé (GWh)',
+            line=dict(color='#059669', width=3),
+            marker=dict(size=8, color='#059669'),
+            fill='tozeroy',
+            fillcolor='rgba(5, 150, 105, 0.1)',
+            hovertemplate='<b>%{x}</b><br>Volume cumulé: %{y:.2f} GWh cumac<extra></extra>'
+        ))
+        
+        fig_cumul.update_layout(
+            title=f"Volume Cumulé {title_suffix}",
+            xaxis_title="Période",
+            yaxis_title="Volume cumulé (GWh cumac)",
+            height=400,
+            hovermode='x unified',
+            plot_bgcolor='white',
+            yaxis=dict(gridcolor='lightgray', zeroline=True, zerolinecolor='lightgray')
+        )
+        
+        st.plotly_chart(fig_cumul, use_container_width=True)
+    
+    # Statistiques récapitulatives de la courbe
+    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+    
+    with col_stat1:
+        volume_total = df_grouped['Volume_GWh'].sum()
+        st.metric("📊 Volume Total", f"{volume_total:.2f} GWh")
+    
+    with col_stat2:
+        volume_moyen = df_grouped['Volume_GWh'].mean()
+        st.metric(f"📈 Moyenne {title_suffix[:-1]}le", f"{volume_moyen:.2f} GWh")
+    
+    with col_stat3:
+        volume_max = df_grouped['Volume_GWh'].max()
+        periode_max = df_grouped.loc[df_grouped['Volume_GWh'].idxmax(), 'Période']
+        st.metric("🔝 Maximum", f"{volume_max:.2f} GWh", delta=f"{periode_max}")
+    
+    with col_stat4:
+        if len(df_grouped) >= 2:
+            variation = ((df_grouped['Volume_GWh'].iloc[-1] - df_grouped['Volume_GWh'].iloc[-2]) / 
+                        df_grouped['Volume_GWh'].iloc[-2] * 100) if df_grouped['Volume_GWh'].iloc[-2] > 0 else 0
+            st.metric("📉 Var. dernière période", f"{variation:+.1f}%", 
+                     delta_color="normal" if variation >= 0 else "inverse")
+        else:
+            st.metric("📉 Var. dernière période", "N/A")
+
     # Nouvelles fiches CEE par an
     st.markdown("---")
     st.subheader("🆕 Nouvelles Fiches CEE par Année")
