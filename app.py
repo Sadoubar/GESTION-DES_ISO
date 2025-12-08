@@ -42,7 +42,8 @@ CO2_PAR_ARBRE_AN = 20  # kg CO2 absorbé par arbre par an
 CO2_PAR_VOITURE_AN = 2700  # kg CO2 par voiture par an
 CONSO_MOYENNE_FOYER_KWH = 4200  # kWh/an
 HABITANTS_PAR_FOYER = 2.2  # Moyenne française INSEE
-PRIX_ELECTRICITE_KWH = 0.19  # €/kWh TTC (tarif réglementé 2024-2025)
+PRIX_ELECTRICITE_KWH = 0.2516  # €/kWh TTC (tarif réglementé 2024-2025)
+HEURES_PAR_AN = 8760  # 24h × 365 jours
 
 # Configuration de la page
 st.set_page_config(
@@ -371,6 +372,9 @@ def calculate_rse_metrics(df, taux_efficacite=0.45):
     
     # Coût électricité évité par an (en euros)
     cout_electricite_evite = gwh_reels * 1_000_000 * PRIX_ELECTRICITE_KWH  # GWh -> kWh * prix
+    
+    # Puissance équivalente (MW) - fonctionnement 24/24, 365j
+    puissance_equivalente_mw = gwh_reels * 1000 / HEURES_PAR_AN  # GWh -> MWh / heures = MW
 
     # Précarité
     if 'Total_précarité_MWh' in df.columns and 'Volume_total_MWh' in df.columns:
@@ -389,6 +393,7 @@ def calculate_rse_metrics(df, taux_efficacite=0.45):
         'foyers_equivalent': foyers_equivalent,
         'habitants_equivalent': habitants_equivalent,
         'cout_electricite_evite': cout_electricite_evite,
+        'puissance_equivalente_mw': puissance_equivalente_mw,
         'pct_precarite': pct_precarite
     }
 
@@ -709,7 +714,18 @@ def create_volume_evolution_chart(df):
         # Formater les valeurs pour l'affichage (arrondi intelligent)
         valeurs_affichees = df_grouped['Volume_GWh'].apply(
             lambda x: f"{x:.1f}" if x >= 10 else f"{x:.2f}"
-        )
+        ).tolist()
+        
+        # Créer les positions de texte : premier à droite, dernier à gauche, autres en haut
+        n_points = len(df_grouped)
+        text_positions = []
+        for i in range(n_points):
+            if i == 0:
+                text_positions.append('top right')
+            elif i == n_points - 1:
+                text_positions.append('top left')
+            else:
+                text_positions.append('top center')
         
         # Courbe des volumes (GWh) avec valeurs affichées
         fig_courbe.add_trace(go.Scatter(
@@ -720,8 +736,8 @@ def create_volume_evolution_chart(df):
             line=dict(color='#2563eb', width=3),
             marker=dict(size=10, color='#2563eb', symbol='circle'),
             text=valeurs_affichees,
-            textposition='top center',
-            textfont=dict(size=11, color='#1e40af', family='Arial Black'),
+            textposition=text_positions,
+            textfont=dict(size=12, color='#1e40af', family='Arial Black'),
             fill='tozeroy',
             fillcolor='rgba(37, 99, 235, 0.1)',
             hovertemplate='<b>%{x}</b><br>Volume: %{y:.2f} GWh cumac<extra></extra>'
@@ -741,7 +757,7 @@ def create_volume_evolution_chart(df):
         
         # Calcul de la marge pour les annotations
         y_max = df_grouped['Volume_GWh'].max()
-        y_margin = y_max * 0.15  # 15% de marge en haut
+        y_margin = y_max * 0.18  # 18% de marge en haut
         
         fig_courbe.update_layout(
             title=dict(
@@ -760,13 +776,17 @@ def create_volume_evolution_chart(df):
                 x=1
             ),
             plot_bgcolor='white',
+            margin=dict(l=60, r=60, t=80, b=60),  # Marges pour les labels
             yaxis=dict(
                 gridcolor='lightgray', 
                 zeroline=True, 
                 zerolinecolor='lightgray',
-                range=[0, y_max + y_margin]  # Ajouter de l'espace pour les labels
+                range=[0, y_max + y_margin]
             ),
-            xaxis=dict(tickangle=-45 if len(df_grouped) > 8 else 0)
+            xaxis=dict(
+                tickangle=-45 if len(df_grouped) > 8 else 0,
+                range=[-0.5, len(df_grouped) - 0.5]  # Espace sur les côtés
+            )
         )
         
         st.plotly_chart(fig_courbe, use_container_width=True)
@@ -778,7 +798,17 @@ def create_volume_evolution_chart(df):
         # Formater les valeurs cumulées
         valeurs_cumul_affichees = df_grouped['Volume_Cumule_GWh'].apply(
             lambda x: f"{x:.1f}" if x >= 10 else f"{x:.2f}"
-        )
+        ).tolist()
+        
+        # Positions de texte pour le graphique cumulé
+        text_positions_cumul = []
+        for i in range(n_points):
+            if i == 0:
+                text_positions_cumul.append('top right')
+            elif i == n_points - 1:
+                text_positions_cumul.append('top left')
+            else:
+                text_positions_cumul.append('top center')
         
         fig_cumul = go.Figure()
         
@@ -790,8 +820,8 @@ def create_volume_evolution_chart(df):
             line=dict(color='#059669', width=3),
             marker=dict(size=10, color='#059669', symbol='circle'),
             text=valeurs_cumul_affichees,
-            textposition='top center',
-            textfont=dict(size=11, color='#047857', family='Arial Black'),
+            textposition=text_positions_cumul,
+            textfont=dict(size=12, color='#047857', family='Arial Black'),
             fill='tozeroy',
             fillcolor='rgba(5, 150, 105, 0.1)',
             hovertemplate='<b>%{x}</b><br>Volume cumulé: %{y:.2f} GWh cumac<extra></extra>'
@@ -799,7 +829,7 @@ def create_volume_evolution_chart(df):
         
         # Calcul de la marge pour les annotations
         y_max_cumul = df_grouped['Volume_Cumule_GWh'].max()
-        y_margin_cumul = y_max_cumul * 0.15
+        y_margin_cumul = y_max_cumul * 0.18
         
         fig_cumul.update_layout(
             title=dict(
@@ -811,13 +841,17 @@ def create_volume_evolution_chart(df):
             height=450,
             hovermode='x unified',
             plot_bgcolor='white',
+            margin=dict(l=60, r=60, t=80, b=60),  # Marges pour les labels
             yaxis=dict(
                 gridcolor='lightgray', 
                 zeroline=True, 
                 zerolinecolor='lightgray',
                 range=[0, y_max_cumul + y_margin_cumul]
             ),
-            xaxis=dict(tickangle=-45 if len(df_grouped) > 8 else 0)
+            xaxis=dict(
+                tickangle=-45 if len(df_grouped) > 8 else 0,
+                range=[-0.5, len(df_grouped) - 0.5]  # Espace sur les côtés
+            )
         )
         
         st.plotly_chart(fig_cumul, use_container_width=True)
@@ -1841,7 +1875,9 @@ def create_rse_analysis(df, taux_efficacite=0.45):
         st.metric(
             "🔋 GWh Réels/an",
             f"{metrics['gwh_reels']:.2f} GWh/an",
-            help=f"Avec taux d'efficacité de {taux_efficacite_input * 100:.0f}%"
+            delta=f"≈ {metrics['puissance_equivalente_mw']:.1f} MW en continu",
+            delta_color="off",
+            help=f"Puissance équivalente si fonctionnement 24h/24, 365j/an (taux efficacité: {taux_efficacite_input * 100:.0f}%)"
         )
 
     with col3:
@@ -2007,7 +2043,7 @@ def create_rse_analysis(df, taux_efficacite=0.45):
 
     Grâce aux **{len(df):,}** dossiers CEE analysés :
 
-    - 🌍 **{metrics['gwh_reels']:.2f} GWh** d'énergie économisée chaque année
+    - 🌍 **{metrics['gwh_reels']:.2f} GWh** d'énergie économisée chaque année (≈ **{metrics['puissance_equivalente_mw']:.1f} MW** en continu)
     - 💰 **{metrics['cout_electricite_evite']:,.0f} €** de coût électricité évité par an
     - 🌳 **{metrics['co2_evite']:,.0f} tonnes** de CO₂ évitées annuellement
     - 🏠 Équivalent à alimenter **{metrics['foyers_equivalent']:,.0f} foyers** ({metrics['habitants_equivalent']:,.0f} habitants) pendant un an
